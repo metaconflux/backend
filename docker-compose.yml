@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  ipfs:
+    image: docker.io/ipfs/kubo:v0.18.0-rc2
+    environment:
+      - IPFS_PATH=/data/ipfs
+    volumes:
+      - ipfs_path:/data/ipfs
+      - ipfs_fuse:/ipfs
+      - ipns_fuse:/ipns
+    ports:
+      # Swarm listens on all interfaces, so is remotely reachable.
+      - 4001:4001/tcp
+      - 4001:4001/udp
+      # API port (should not be public)
+      - 127.0.0.1:5001:5001
+      
+      # HTTP Gateway
+      - 127.0.0.1:8080:8080
+volumes:
+  ipfs_path:
+  ipfs_fuse:
+  ipns_fuse:
