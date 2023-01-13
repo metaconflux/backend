@@ -28,7 +28,7 @@ func NewAPI(cache cache.ICache, resolver resolver.IResolver, statics statics.ISt
 
 func (a API) Register(g *echo.Group) {
 	g.POST("/metadata/", a.Create)
-	g.GET("/metadata/:contract/:tokenId", a.Get)
+	g.GET("/metadata/:contract/:tokenId/", a.Get)
 }
 
 func (a API) Create(c echo.Context) error {

@@ -1,6 +1,10 @@
 package utils
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/cbroglie/mustache"
+)
 
 func Remarshal(in interface{}, out interface{}) error {
 	b, err := json.Marshal(in)
@@ -21,4 +25,13 @@ func MergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return result
+}
+
+func Template(content string, params map[string]interface{}) (string, error) {
+	data, err := mustache.Render(content, params)
+	if err != nil {
+		return "", err
+	}
+
+	return data, nil
 }

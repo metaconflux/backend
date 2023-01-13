@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"path"
 	"strings"
 
 	shell "github.com/ipfs/go-ipfs-api"
+	"github.com/metaconflux/backend/internal/utils"
 )
 
 type IStatics interface {
@@ -33,7 +33,13 @@ func (s Statics) Get(spec SpecSchema, params map[string]interface{}) (map[string
 	split := strings.Split(spec.Url, ":")
 	switch split[0] {
 	case "ipfs":
-		r, err := s.ipfsClient.Cat(path.Join(split[1][2:], params["id"].(string)))
+		path, err := utils.Template(split[1][2:], params)
+		if err != nil {
+			return nil, err
+		}
+		log.Println(path)
+
+		r, err := s.ipfsClient.Cat(path)
 		if err != nil {
 			return nil, err
 		}
@@ -65,5 +71,5 @@ type SpecSchema struct {
 }
 
 func getCID(url string) string {
-	return strings.TrimPrefix(url, "ipfs://")
+	return strings.Split(strings.TrimPrefix(url, "ipfs://"), "/")[0]
 }

@@ -10,6 +10,7 @@ require (
 
 require (
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
+	github.com/cbroglie/mustache v1.4.0 // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
