@@ -1,28 +1,25 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	shell "github.com/ipfs/go-ipfs-api"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/lmittmann/w3"
 	"github.com/metaconflux/backend/internal/api/v1alpha"
-	cache "github.com/metaconflux/backend/internal/cache/ipfs"
-	"github.com/metaconflux/backend/internal/resolver/memory"
-
 	"github.com/metaconflux/backend/internal/transformers"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/contract"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/ipfs"
+	"github.com/metaconflux/backend/internal/utils"
 )
 
 func main() {
-	e := echo.New()
-	e.Use(
-		middleware.Logger(), // Log everything to stdout
-	)
-	g := e.Group("/api/v1alpha")
+	if len(os.Args) < 2 {
+		log.Fatal("Need path to manifest")
+	}
 
 	tm, _ := transformers.NewTransformerManager()
 
@@ -34,7 +31,9 @@ func main() {
 
 	var err error
 	clients[80001] = w3.MustDial("https://polygon-testnet.public.blastapi.io")
-
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer clients[80001].Close()
 
 	constractT := contract.NewTransformer(clients)
@@ -49,10 +48,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r := memory.NewResolver()
-	c := cache.NewIPFSCache(url, shell)
-	a := v1alpha.NewAPI(c, r, tm)
-	a.Register(g)
+	data, err := ioutil.ReadFile(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	log.Fatal(e.Start("localhost:8081"))
+	var manifest v1alpha.MetadataSchema
+	err = json.Unmarshal(data, &manifest)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, err := tm.Execute(manifest.Transformers, map[string]interface{}{"id": 1})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = utils.JsonPretty(result)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

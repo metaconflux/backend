@@ -8,21 +8,20 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/metaconflux/backend/internal/cache"
 	"github.com/metaconflux/backend/internal/resolver"
-	"github.com/metaconflux/backend/internal/statics"
-	"github.com/metaconflux/backend/internal/utils"
+	"github.com/metaconflux/backend/internal/transformers"
 )
 
 type API struct {
-	cache    cache.ICache
-	resolver resolver.IResolver
-	statics  statics.IStatics
+	cache        cache.ICache
+	resolver     resolver.IResolver
+	transformers *transformers.Transformers
 }
 
-func NewAPI(cache cache.ICache, resolver resolver.IResolver, statics statics.IStatics) API {
+func NewAPI(cache cache.ICache, resolver resolver.IResolver, transformers *transformers.Transformers) API {
 	return API{
-		cache:    cache,
-		resolver: resolver,
-		statics:  statics,
+		cache:        cache,
+		resolver:     resolver,
+		transformers: transformers,
 	}
 }
 
@@ -40,12 +39,7 @@ func (a API) Create(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err = a.resolver.Set(data.Contract, id)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err)
-	}
-
-	err = a.statics.Copy(data.Static)
+	err = a.resolver.Set(data.Contract, id, 0)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
@@ -57,7 +51,26 @@ func (a API) Get(c echo.Context) error {
 	contract := c.Param("contract")
 	tokenId := c.Param("tokenId")
 
-	var result map[string]interface{}
+	cacheId := fmt.Sprintf("%s/%s", contract, tokenId)
+	log.Printf("Trying cache for %s", cacheId)
+
+	cacheKey, err := a.resolver.Get(cacheId)
+	if err == nil {
+		var data interface{}
+		err = a.cache.Get(cacheKey, &data)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, err)
+		}
+
+		log.Printf("Using cache for %s (%s)", cacheId, cacheKey)
+		return c.JSON(http.StatusOK, data)
+	} else {
+		if err != resolver.ErrNotFound {
+			return c.JSON(http.StatusBadRequest, err)
+		}
+	}
+
+	//var result map[string]interface{}
 
 	if contract == "" {
 		return c.JSON(http.StatusBadRequest, fmt.Errorf("Contract address parameter empty"))
@@ -78,15 +91,22 @@ func (a API) Get(c echo.Context) error {
 
 	params := make(map[string]interface{})
 	params["id"] = tokenId
+	params["contract"] = contract
 
-	staticData, err := a.statics.Get(metadata.Static, params)
+	result, err := a.transformers.Execute(metadata.Transformers, params)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	d := utils.MergeMaps(result, staticData)
+	id, err := a.cache.Push(result)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
 
-	d["something"] = "more"
+	err = a.resolver.Set(cacheId, id, 1)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
 
-	return c.JSON(http.StatusOK, d)
+	return c.JSON(http.StatusOK, result)
 }

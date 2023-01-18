@@ -1,11 +1,12 @@
 package v1alpha
 
-import "github.com/metaconflux/backend/internal/statics"
+import (
+	"github.com/metaconflux/backend/internal/transformers"
+)
 
 type MetadataSchema struct {
-	Contract string             `json:"contract"`
-	Static   statics.SpecSchema `json:"static"`
-	Dynamic  []DynamicItem      `json:"dynamic"`
+	Contract     string                         `json:"contract"`
+	Transformers []transformers.BaseTransformer `json:"transformers"`
 }
 
 type DynamicItem struct {

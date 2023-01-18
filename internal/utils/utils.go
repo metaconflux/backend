@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/cbroglie/mustache"
 )
@@ -34,4 +35,14 @@ func Template(content string, params map[string]interface{}) (string, error) {
 	}
 
 	return data, nil
+}
+
+func JsonPretty(in interface{}) error {
+	data, err := json.MarshalIndent(in, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	log.Println(string(data))
+	return nil
 }
