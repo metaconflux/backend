@@ -162,8 +162,11 @@ func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{
 		return nil, err
 	}
 
+	result = string(baseBytes)
+
 	for i, ret := range t.spec.Returns {
-		result, err = sjson.Set(string(baseBytes), ret.Name, &(data[i]))
+		log.Println(ret.Name)
+		result, err = sjson.Set(result, ret.Name, &(data[i]))
 		if err != nil {
 			return nil, err
 		}

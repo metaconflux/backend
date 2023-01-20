@@ -1,0 +1,7 @@
+server:
+  host: 0.0.0.0
+  port: 8081
+ipfs:
+  apiEndpoint: http://localhost:5001
+cache:
+  defaultTimeout: 1
