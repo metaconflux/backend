@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"log"
+	"math/rand"
 
 	"github.com/cbroglie/mustache"
 )
@@ -45,4 +46,14 @@ func JsonPretty(in interface{}) error {
 
 	log.Println(string(data))
 	return nil
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
