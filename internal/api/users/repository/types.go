@@ -29,7 +29,7 @@ type UserModel struct {
 
 type ManifestModel struct {
 	gorm.Model
-	Address string    `json:"address"`
+	Address string    `json:"address" gorm:"uniqueindex"`
 	User    UserModel `json:"user"`
 	UserID  string
 }

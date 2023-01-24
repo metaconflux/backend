@@ -155,10 +155,6 @@ func (a API) GetMetadata(c echo.Context) error {
 		log.Printf("Using cache for %s (%s)", cacheId, cacheKey)
 		return c.JSON(http.StatusOK, data)
 	} else {
-		if err != resolver.ErrNotFound && err != resolver.ErrLifetime {
-			return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
-		}
-
 		if err == resolver.ErrLifetime {
 			manifest, err := a.getByAddress(contract)
 			if err != nil {
@@ -180,7 +176,10 @@ func (a API) GetMetadata(c echo.Context) error {
 				log.Printf("Frozen: renewing and using cache for %s (%s)", cacheId, cacheKey)
 				return c.JSON(http.StatusOK, data)
 			}
+		} else if err != resolver.ErrNotFound {
+			return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
 		}
+
 	}
 
 	//var result map[string]interface{}
