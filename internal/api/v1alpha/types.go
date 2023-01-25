@@ -9,6 +9,7 @@ type Manifest struct {
 	Version      string                         `json:"version"`
 	Owner        string                         `json:"owner"`
 	Contract     string                         `json:"contract"`
+	ChainID      int64                          `json:"chainId"`
 	Transformers []transformers.BaseTransformer `json:"transformers"`
 	Config       Config                         `json:"config"`
 }

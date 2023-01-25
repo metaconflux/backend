@@ -37,11 +37,11 @@ func NewAPI(cache cache.ICache, resolver resolver.IResolver, transformers *trans
 func (a API) Register(g *echo.Group) {
 	ag := g.Group(fmt.Sprintf("/%s/%s", VERSION, AUTHENTICATED_GROUP))
 	ag.POST("/", a.Create)
-	ag.PUT("/:contract/", a.Update)
-	ag.GET("/:contract/", a.Get)
+	ag.PUT("/:chainId/:contract/", a.Update)
+	ag.GET("/:chainId/:contract/", a.Get)
 
 	publicG := g.Group(fmt.Sprintf("/%s/%s", VERSION, PUBLIC_GROUP))
-	publicG.GET("/:contract/:tokenId/", a.GetMetadata)
+	publicG.GET("/:chainId/:contract/:tokenId/", a.GetMetadata)
 }
 
 func (a API) Create(c echo.Context) error {
@@ -53,7 +53,8 @@ func (a API) Create(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Invalid Resource Version")))
 	}
 
-	manifest, err := a.getByAddress(normalizedContract)
+	chainId := fmt.Sprintf("%d", data.ChainID)
+	manifest, err := a.getMetadata(a.formatChainContractKey(chainId, normalizedContract))
 	if err != nil {
 		if err != resolver.ErrNotFound && err != resolver.ErrLifetime {
 			return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
@@ -74,7 +75,7 @@ func (a API) Create(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
 
-	err = a.resolver.Set(normalizedContract, id, 0)
+	err = a.resolver.Set(a.formatChainContractKey(chainId, normalizedContract), id, 0)
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
@@ -85,7 +86,11 @@ func (a API) Create(c echo.Context) error {
 func (a API) Update(c echo.Context) error {
 	var data Manifest
 	err := c.Bind(&data)
+	if err != nil {
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
+	}
 	contract := strings.ToLower(c.Param("contract"))
+	chainId := c.Param("chainId")
 	normalizedContract := strings.ToLower(data.Contract)
 
 	if !data.ValidVersion(VERSION) {
@@ -96,7 +101,11 @@ func (a API) Update(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Contract parameter does not match the payload")))
 	}
 
-	manifest, err := a.getByAddress(normalizedContract)
+	if chainId != fmt.Sprintf("%d", data.ChainID) {
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("ChainId parameter does not match the payload")))
+	}
+
+	manifest, err := a.getMetadata(a.formatChainContractKey(chainId, normalizedContract))
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
@@ -113,7 +122,7 @@ func (a API) Update(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
 
-	err = a.resolver.Set(normalizedContract, id, 0)
+	err = a.resolver.Set(a.formatChainContractKey(chainId, normalizedContract), id, 0)
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
@@ -123,8 +132,9 @@ func (a API) Update(c echo.Context) error {
 
 func (a API) Get(c echo.Context) error {
 	contract := strings.ToLower(c.Param("contract"))
+	chainId := c.Param("chainId")
 
-	metadata, err := a.getByAddress(contract)
+	metadata, err := a.getMetadata(a.formatChainContractKey(chainId, contract))
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
@@ -139,6 +149,7 @@ func (a API) Get(c echo.Context) error {
 
 func (a API) GetMetadata(c echo.Context) error {
 	contract := strings.ToLower(c.Param("contract"))
+	chainId := c.Param("chainId")
 	tokenId := c.Param("tokenId")
 
 	cacheId := fmt.Sprintf("%s/%s", contract, tokenId)
@@ -156,7 +167,7 @@ func (a API) GetMetadata(c echo.Context) error {
 		return c.JSON(http.StatusOK, data)
 	} else {
 		if err == resolver.ErrLifetime {
-			manifest, err := a.getByAddress(contract)
+			manifest, err := a.getMetadata(a.formatChainContractKey(chainId, contract))
 			if err != nil {
 				return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 			}
@@ -188,7 +199,7 @@ func (a API) GetMetadata(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Contract address parameter empty")))
 	}
 
-	manifest, err := a.getByAddress(contract)
+	manifest, err := a.getMetadata(contract)
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
@@ -215,10 +226,10 @@ func (a API) GetMetadata(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (a API) getByAddress(contract string) (Manifest, error) {
+func (a API) getMetadata(manifestKey string) (Manifest, error) {
 	var metadata Manifest
 
-	key, err := a.resolver.Get(contract)
+	key, err := a.resolver.Get(manifestKey)
 	if err != nil {
 		return metadata, err
 	}
@@ -244,4 +255,8 @@ func (a API) ensureOwner(c echo.Context, metadata Manifest) (*jwt.StandardClaims
 
 	return user, nil
 
+}
+
+func (a API) formatChainContractKey(chainId string, contract string) string {
+	return fmt.Sprintf("manifest#%s#%s", chainId, contract)
 }
