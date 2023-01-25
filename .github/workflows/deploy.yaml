@@ -1,0 +1,17 @@
+on: 
+ issues:
+   types:
+    - opened
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Get version
+        run: make parse-version
+        env:
+          ISSUE_BODY: ${{ github.event.comment.body }}
+
+      - name: Run Makefile
+        run: make deploy VERSION=$VERSION
+        env: # Or as an environment variable
+          SSH_KEY: ${{ secrets.SSH_KEY }}
