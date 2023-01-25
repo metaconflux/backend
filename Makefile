@@ -27,11 +27,15 @@ release-container: login build-container push-container
 pull-image:
 	podman pull $(TAG)
 
+parse-version:
+	echo "$${ISSUE_BODY}" &&\
+	echo "$${ISSUE_BODY}" | sed -n 's/RELEASE VERSION: \([^\\n]*\).*/\1/p' > ./\$$VERSION
+
 deploy: pull-image
 	podman stop $(CONTAINER_NAME);\
 	podman rm $(CONTAINER_NAME);\
 	podman run -d --name $(CONTAINER_NAME)\
 			 -p 8081:8081\
-			 -v ${PWD}/config.yaml:/opt/metaconflux/config.yaml:z\
-			 -v ${PWD}/gorm.db:/opt/metaconflux/gorm.db:z\
+			 -v $${PWD}/config.yaml:/opt/metaconflux/config.yaml:z\
+			 -v $${PWD}/gorm.db:/opt/metaconflux/gorm.db:z\
 			 $(TAG)
