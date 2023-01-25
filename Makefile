@@ -20,7 +20,10 @@ push-container:
 	podman push $(TAG)
 
 login:
-	docker login -u $(QUAY_USER) -p $(QUAY_PASSWORD) $(REGISTRY)
+	podman login --get-login 2>&1 $(REGISTRY) | grep -q Error &&\
+		docker login -u $(QUAY_USER) -p $(QUAY_PASSWORD) $(REGISTRY)  ||\
+		echo "logged in"
+		
 
 release-container: login build-container push-container
 
