@@ -53,7 +53,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var manifest v1alpha.MetadataSchema
+	var manifest v1alpha.Manifest
 	err = json.Unmarshal(data, &manifest)
 	if err != nil {
 		log.Fatal(err)
