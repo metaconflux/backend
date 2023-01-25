@@ -1,0 +1,43 @@
+{
+  "contract": "0xeC169CA9A538210ed41Ae9dA4F53C0F7ea16bCb0",
+  "transformers": [
+    {
+      "group": "core",
+      "version": "v1alpha",
+      "kind": "ipfs",
+      "spec": {
+        "url": "ipfs://QmUrEHi8CNYKbKR14zZTn3LaUbMEzmFdrMtHaPAcYrZdbL/{{id}}.json"
+      }
+    },
+    {
+      "group": "core",
+      "version": "v1alpha",
+      "kind": "contract",
+      "spec": {
+        "address": "0xeC169CA9A538210ed41Ae9dA4F53C0F7ea16bCb0",
+        "chainId": 80001,
+        "function": "getMetadataValues",
+        "args": [
+          {
+            "type": "uint256",
+            "value": "{{id}}"
+          }
+        ],
+        "returns": [
+          {
+            "name": "attributes.2.value",
+            "type": "uint256"
+          },
+          {
+            "name": "attributes.1.value",
+            "type": "uint256"
+          },
+          {
+            "name": "attributes.0.value",
+            "type": "address"
+          }
+        ]
+      }
+    }
+  ]
+}
