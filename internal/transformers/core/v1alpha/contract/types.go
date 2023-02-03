@@ -13,6 +13,7 @@ import (
 	"github.com/lmittmann/w3"
 	"github.com/lmittmann/w3/module/eth"
 	"github.com/metaconflux/backend/internal/gvk"
+	"github.com/metaconflux/backend/internal/template"
 	"github.com/metaconflux/backend/internal/transformers"
 	"github.com/metaconflux/backend/internal/utils"
 	"github.com/tidwall/sjson"
@@ -24,12 +25,9 @@ var GVK = gvk.NewGroupVersionKind(
 	"contract",
 )
 
-func init() {
-	var _ transformers.ITransformer = &Transformer{}
-}
+var _ transformers.ITransformer = &Transformer{}
 
 type Transformer struct {
-	transformers.ITransformer
 	spec    SpecSchema
 	params  map[string]interface{}
 	data    map[string]interface{}
@@ -37,17 +35,17 @@ type Transformer struct {
 }
 
 type Arg struct {
-	Type  string      `json:"type"`
-	Value interface{} `json:"value"`
+	Type  string `json:"type" template:""`
+	Value string `json:"value" template:""`
 }
 
 type Ret struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name string `json:"name" template:""`
+	Type string `json:"type" template:""`
 }
 
 type SpecSchema struct {
-	Address  common.Address `json:"address"`
+	Address  common.Address `json:"address" template:""`
 	ChainID  uint64         `json:"chainId"`
 	Function string         `json:"function"`
 	Args     []Arg          `json:"args"`
@@ -72,7 +70,7 @@ func (s SpecSchema) argValues() []any {
 	for i, arg := range s.Args {
 		switch arg.Type {
 		case "uint256":
-			val, err := strconv.Atoi(arg.Value.(string))
+			val, err := strconv.Atoi(arg.Value)
 			if err != nil {
 				return nil
 			}
@@ -123,20 +121,25 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 		return nil, err
 	}
 
-	for i, arg := range spec.Args {
+	/*for i, arg := range spec.Args {
 		spec.Args[i].Value, err = utils.Template(arg.Value.(string), params)
 		if err != nil {
 			return nil, err
 		}
-	}
+	}*/
 
-	log.Println(spec)
-
-	return Transformer{
-		spec:    spec,
+	transformer := Transformer{
 		params:  params,
 		clients: t.clients,
-	}, nil
+	}
+
+	err = template.Template(&spec, &transformer.spec, params)
+	if err != nil {
+		return nil, err
+	}
+	log.Println(transformer.spec)
+
+	return transformer, nil
 }
 
 func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
@@ -195,4 +198,8 @@ func (t Transformer) Status() []transformers.Status {
 
 func (t Transformer) Params() map[string]interface{} {
 	return nil
+}
+
+func (t Transformer) CreditsConsumed() int {
+	return 3
 }

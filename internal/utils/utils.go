@@ -5,7 +5,7 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/cbroglie/mustache"
+	"github.com/vpavlin/mustache"
 )
 
 func Remarshal(in interface{}, out interface{}) error {
@@ -30,6 +30,7 @@ func MergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 }
 
 func Template(content string, params map[string]interface{}) (string, error) {
+	mustache.Experimental = true
 	data, err := mustache.Render(content, params)
 	if err != nil {
 		return "", err

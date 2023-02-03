@@ -62,6 +62,18 @@ func (a UserApi) SignIn(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
 
+	cookie := new(http.Cookie)
+	cookie.Name = "mcx-auth-token"
+	cookie.Value = token
+	cookie.Expires = time.Now().Add(signin.Lifetime)
+	//cookie.Path = "/"
+	//cookie.HttpOnly = true
+	//cookie.Domain = "something.app.localhost"
+	cookie.Secure = true
+	cookie.SameSite = http.SameSiteNoneMode
+
+	c.SetCookie(cookie)
+
 	return c.JSON(http.StatusOK, SignInResult{Token: token})
 }
 
