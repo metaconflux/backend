@@ -1,25 +1,28 @@
 package transformers
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/metaconflux/backend/internal/gvk"
-	"github.com/sirupsen/logrus"
 )
 
 var DEFAULT_DEADLINE = 5 * time.Second
+
+var ErrTransformerTimeout = fmt.Errorf("Transformer exceeded deadline")
 
 type ITransformer interface {
 	//Prepare() error
 	//Transform(base interface{}) error
 	WithSpec(spec interface{}, params map[string]interface{}) (ITransformer, error)
-	Execute(base map[string]interface{}) (map[string]interface{}, error)
+	Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error)
 	Result() interface{}
 	Status() []Status
 	Params() map[string]interface{}
 	CreditsConsumed() int
+	Deadline() time.Duration
 }
 
 type NewTransformerFunc = func(spec interface{}, params map[string]interface{}) (ITransformer, error)
@@ -71,7 +74,7 @@ func (t Transformers) Register(gvk gvk.GroupVersionKind, transformer NewTransfor
 	t.transformers[gvk] = TransformerInfo{
 		New:      transformer,
 		Credits:  nt.CreditsConsumed(),
-		Deadline: DEFAULT_DEADLINE,
+		Deadline: nt.Deadline(),
 	}
 
 	return nil
@@ -146,9 +149,30 @@ func (t Transformers) Execute(transformers []BaseTransformer, params map[string]
 				tSpec.Status = transformer.Status()
 			}()
 
-			result, err = transformer.Execute(result)
-			if err != nil {
-				logrus.Errorf("Failed to execute transformer %s: %s", tSpec.GroupVersionKind.String(), err)
+			ctx, cancel := context.WithTimeout(context.Background(), ti.Deadline)
+			defer cancel()
+
+			resultCh := make(chan map[string]interface{}, 1)
+			errCh := make(chan error, 1)
+
+			go func() {
+				result, err := transformer.Execute(ctx, result)
+				if err != nil {
+					errCh <- err
+					return
+				}
+
+				resultCh <- result
+			}()
+
+			select {
+			case <-ctx.Done():
+				err = fmt.Errorf("%s: %s", tSpec.GroupVersionKind.String(), ErrTransformerTimeout)
+				return
+			case r := <-resultCh:
+				result = r
+			case e := <-errCh:
+				err = fmt.Errorf("%s: %s", tSpec.GroupVersionKind.String(), e)
 				return
 			}
 

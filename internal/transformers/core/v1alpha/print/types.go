@@ -1,6 +1,9 @@
 package print
 
 import (
+	"context"
+	"time"
+
 	"github.com/metaconflux/backend/internal/gvk"
 	"github.com/metaconflux/backend/internal/template"
 	"github.com/metaconflux/backend/internal/transformers"
@@ -14,9 +17,8 @@ var GVK = gvk.NewGroupVersionKind(
 	"print",
 )
 
-func init() {
-	var _ transformers.ITransformer = &Transformer{}
-}
+var deadline = 1 * time.Second
+var _ transformers.ITransformer = &Transformer{}
 
 type Transformer struct {
 	spec   SpecSchema
@@ -52,9 +54,11 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 	return transformer, nil
 }
 
-func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
+func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (result map[string]interface{}, err error) {
+	//time.Sleep(10 * time.Second)
 	logrus.Infof("Some value: %s", t.spec.Something)
 	logrus.Infof("Some other value: %s", t.spec.SomethingElse)
+	//return nil, fmt.Errorf("Failed to print..kinda")
 
 	return base, nil
 }
@@ -72,4 +76,8 @@ func (t Transformer) Result() interface{} {
 
 func (t Transformer) CreditsConsumed() int {
 	return 1
+}
+
+func (t Transformer) Deadline() time.Duration {
+	return deadline
 }

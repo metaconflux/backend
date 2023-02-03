@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
@@ -25,6 +27,7 @@ var GVK = gvk.NewGroupVersionKind(
 	"contract",
 )
 
+var deadline = 3 * time.Second
 var _ transformers.ITransformer = &Transformer{}
 
 type Transformer struct {
@@ -142,7 +145,7 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 	return transformer, nil
 }
 
-func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
+func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error) {
 	w3func, err := w3.NewFunc(t.spec.funcDef(), t.spec.retTypes())
 	if err != nil {
 		return nil, err
@@ -151,7 +154,8 @@ func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{
 	data := t.spec.retTargets()
 	log.Println(reflect.TypeOf(data[0]))
 
-	err = t.clients[t.spec.ChainID].Call(
+	err = t.clients[t.spec.ChainID].CallCtx(
+		ctx,
 		eth.CallFunc(w3func, t.spec.Address, t.spec.argValues()...).Returns(data...),
 	)
 	if err != nil {
@@ -168,7 +172,6 @@ func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{
 	result = string(baseBytes)
 
 	for i, ret := range t.spec.Returns {
-		log.Println(ret.Name)
 		result, err = sjson.Set(result, ret.Name, &(data[i]))
 		if err != nil {
 			return nil, err
@@ -202,4 +205,8 @@ func (t Transformer) Params() map[string]interface{} {
 
 func (t Transformer) CreditsConsumed() int {
 	return 3
+}
+
+func (t Transformer) Deadline() time.Duration {
+	return deadline
 }

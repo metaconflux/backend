@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/metaconflux/backend/internal/gvk"
@@ -20,6 +21,8 @@ var GVK = gvk.NewGroupVersionKind(
 	"v1alpha",
 	"ipfs",
 )
+
+var deadline = 3 * time.Second
 
 var _ transformers.ITransformer = (*Transformer)(nil)
 
@@ -56,7 +59,7 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 	return transformer, nil
 }
 
-func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
+func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error) {
 	split := strings.Split(t.spec.Url, ":")
 
 	logrus.Infof("Split: %s", split)
@@ -117,4 +120,8 @@ type SpecSchema struct {
 
 func getCID(url string) string {
 	return strings.Split(strings.TrimPrefix(url, "ipfs://"), "/")[0]
+}
+
+func (t Transformer) Deadline() time.Duration {
+	return deadline
 }
