@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,11 +9,13 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
 	"github.com/lmittmann/w3/module/eth"
 	"github.com/metaconflux/backend/internal/gvk"
+	"github.com/metaconflux/backend/internal/template"
 	"github.com/metaconflux/backend/internal/transformers"
 	"github.com/metaconflux/backend/internal/utils"
 	"github.com/tidwall/sjson"
@@ -24,12 +27,10 @@ var GVK = gvk.NewGroupVersionKind(
 	"contract",
 )
 
-func init() {
-	var _ transformers.ITransformer = &Transformer{}
-}
+var deadline = 3 * time.Second
+var _ transformers.ITransformer = &Transformer{}
 
 type Transformer struct {
-	transformers.ITransformer
 	spec    SpecSchema
 	params  map[string]interface{}
 	data    map[string]interface{}
@@ -37,17 +38,17 @@ type Transformer struct {
 }
 
 type Arg struct {
-	Type  string      `json:"type"`
-	Value interface{} `json:"value"`
+	Type  string `json:"type" template:""`
+	Value string `json:"value" template:""`
 }
 
 type Ret struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name string `json:"name" template:""`
+	Type string `json:"type" template:""`
 }
 
 type SpecSchema struct {
-	Address  common.Address `json:"address"`
+	Address  common.Address `json:"address" template:""`
 	ChainID  uint64         `json:"chainId"`
 	Function string         `json:"function"`
 	Args     []Arg          `json:"args"`
@@ -72,7 +73,7 @@ func (s SpecSchema) argValues() []any {
 	for i, arg := range s.Args {
 		switch arg.Type {
 		case "uint256":
-			val, err := strconv.Atoi(arg.Value.(string))
+			val, err := strconv.Atoi(arg.Value)
 			if err != nil {
 				return nil
 			}
@@ -123,23 +124,28 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 		return nil, err
 	}
 
-	for i, arg := range spec.Args {
+	/*for i, arg := range spec.Args {
 		spec.Args[i].Value, err = utils.Template(arg.Value.(string), params)
 		if err != nil {
 			return nil, err
 		}
-	}
+	}*/
 
-	log.Println(spec)
-
-	return Transformer{
-		spec:    spec,
+	transformer := Transformer{
 		params:  params,
 		clients: t.clients,
-	}, nil
+	}
+
+	err = template.Template(&spec, &transformer.spec, params)
+	if err != nil {
+		return nil, err
+	}
+	log.Println(transformer.spec)
+
+	return transformer, nil
 }
 
-func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
+func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error) {
 	w3func, err := w3.NewFunc(t.spec.funcDef(), t.spec.retTypes())
 	if err != nil {
 		return nil, err
@@ -148,7 +154,8 @@ func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{
 	data := t.spec.retTargets()
 	log.Println(reflect.TypeOf(data[0]))
 
-	err = t.clients[t.spec.ChainID].Call(
+	err = t.clients[t.spec.ChainID].CallCtx(
+		ctx,
 		eth.CallFunc(w3func, t.spec.Address, t.spec.argValues()...).Returns(data...),
 	)
 	if err != nil {
@@ -165,7 +172,6 @@ func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{
 	result = string(baseBytes)
 
 	for i, ret := range t.spec.Returns {
-		log.Println(ret.Name)
 		result, err = sjson.Set(result, ret.Name, &(data[i]))
 		if err != nil {
 			return nil, err
@@ -195,4 +201,12 @@ func (t Transformer) Status() []transformers.Status {
 
 func (t Transformer) Params() map[string]interface{} {
 	return nil
+}
+
+func (t Transformer) CreditsConsumed() int {
+	return 3
+}
+
+func (t Transformer) Deadline() time.Duration {
+	return deadline
 }

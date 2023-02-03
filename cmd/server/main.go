@@ -15,6 +15,8 @@ import (
 	"github.com/metaconflux/backend/internal/api/users/repository/sqliterepo"
 	"github.com/metaconflux/backend/internal/api/v1alpha"
 	cache "github.com/metaconflux/backend/internal/cache/ipfs"
+	"github.com/metaconflux/backend/internal/hooks"
+	"github.com/metaconflux/backend/internal/hooks/api"
 	sqliteresolver "github.com/metaconflux/backend/internal/resolver/sqlite"
 	"github.com/spf13/viper"
 	"gorm.io/driver/sqlite"
@@ -23,6 +25,7 @@ import (
 	"github.com/metaconflux/backend/internal/transformers"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/contract"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/ipfs"
+	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/print"
 )
 
 func main() {
@@ -44,8 +47,9 @@ func main() {
 	e.Use(
 		middleware.Logger(), // Log everything to stdout
 		middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins: []string{"http://localhost:3000"},
-			AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+			AllowOrigins:     []string{"http://localhost:3000"},
+			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+			AllowCredentials: true,
 		}),
 		middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{
 			Skipper: func(c echo.Context) bool {
@@ -75,6 +79,8 @@ func main() {
 	e.Pre(middleware.AddTrailingSlash())
 	g := e.Group("/api")
 
+	///Transformers
+
 	tm, _ := transformers.NewTransformerManager()
 
 	url := viper.GetString("ipfs.apiEndpoint")
@@ -103,6 +109,13 @@ func main() {
 
 	contractT := contract.NewTransformer(clients)
 
+	pritnT := print.NewTransformer()
+
+	err = tm.Register(print.GVK, pritnT.WithSpec)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	err = tm.Register(ipfs.GVK, ipfsT.WithSpec)
 	if err != nil {
 		log.Fatal(err)
@@ -113,7 +126,26 @@ func main() {
 		log.Fatal(err)
 	}
 
+	///Hooks
+	hm := hooks.NewHooksManager()
+
+	hookApi := api.NewHook()
+
+	err = hm.Register(api.TYPE, hookApi)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	db, err := gorm.Open(sqlite.Open("./gorm.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	repository, err := sqliterepo.NewSqliteRepository(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = repository.Migrate()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,17 +157,8 @@ func main() {
 		log.Fatal(err)
 	}
 	c := cache.NewIPFSCache(url, shell)
-	a := v1alpha.NewAPI(c, r, tm)
+	a := v1alpha.NewAPI(c, r, tm, repository, hm)
 	a.Register(g)
-
-	repository, err := sqliterepo.NewSqliteRepository(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = repository.Migrate()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	u := users.NewUserAPI(m, c, r, repository)
 	u.Register(g)

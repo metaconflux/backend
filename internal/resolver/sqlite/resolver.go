@@ -68,8 +68,27 @@ func (r *Resolver) Set(key string, val string, timeout int64) error {
 
 	result := r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"value", "lifetime", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"value", "lifetime", "updated_at", "deleted_at"}),
 	}).Create(&model)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func (r *Resolver) Delete(key string) error {
+	var model ResolverModel
+	result := r.db.Find(&model, "key = ?", key)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return resolver.ErrNotFound
+		}
+
+		return result.Error
+	}
+
+	result = r.db.Delete(&model, "id = ?", model.ID)
 	if result.Error != nil {
 		return result.Error
 	}

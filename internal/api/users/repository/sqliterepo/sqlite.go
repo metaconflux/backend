@@ -8,7 +8,7 @@ import (
 )
 
 func (r *Sqlite) Migrate() error {
-	return r.db.AutoMigrate(&repository.UserModel{}, &repository.ManifestModel{})
+	return r.db.AutoMigrate(&repository.TierModel{}, &repository.UserModel{}, &repository.ManifestModel{})
 }
 
 func (r *Sqlite) Create(c context.Context, user repository.UserModel) error {
@@ -54,7 +54,7 @@ func (r *Sqlite) NewLogin(c context.Context, id string, nonce string) error {
 }
 
 func (r *Sqlite) CreateManifest(c context.Context, manifest repository.ManifestModel) error {
-	result := r.db.Create(manifest)
+	result := r.db.Create(&manifest)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -62,9 +62,9 @@ func (r *Sqlite) CreateManifest(c context.Context, manifest repository.ManifestM
 	return nil
 }
 
-func (r *Sqlite) GetManifests(c context.Context, id string) ([]repository.ManifestModel, error) {
+func (r *Sqlite) GetManifests(c context.Context, userId string) ([]repository.ManifestModel, error) {
 	var manifests []repository.ManifestModel
-	result := r.db.Preload("UserModel", "id = ?", id).Find(&manifests)
+	result := r.db.Find(&manifests, "user_id = ?", userId)
 	if result.Error != nil {
 		return nil, result.Error
 	}

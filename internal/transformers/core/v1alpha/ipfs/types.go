@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/metaconflux/backend/internal/gvk"
+	"github.com/metaconflux/backend/internal/template"
 	"github.com/metaconflux/backend/internal/transformers"
 	"github.com/metaconflux/backend/internal/utils"
+	"github.com/sirupsen/logrus"
 )
 
 var GVK = gvk.NewGroupVersionKind(
@@ -19,12 +22,11 @@ var GVK = gvk.NewGroupVersionKind(
 	"ipfs",
 )
 
-func init() {
-	var _ transformers.ITransformer = &Transformer{}
-}
+var deadline = 3 * time.Second
+
+var _ transformers.ITransformer = (*Transformer)(nil)
 
 type Transformer struct {
-	transformers.ITransformer
 	spec       SpecSchema
 	params     map[string]interface{}
 	data       map[string]interface{}
@@ -44,21 +46,30 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 		return nil, err
 	}
 
-	return Transformer{
-		spec:       spec,
+	transformer := Transformer{
 		params:     params,
 		ipfsClient: t.ipfsClient,
-	}, nil
+	}
+
+	err = template.Template(&spec, &transformer.spec, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return transformer, nil
 }
 
-func (t Transformer) Execute(base map[string]interface{}) (map[string]interface{}, error) {
+func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error) {
 	split := strings.Split(t.spec.Url, ":")
+
+	logrus.Infof("Split: %s", split)
 
 	path, err := utils.Template(split[1][2:], t.params)
 	if err != nil {
 		return nil, err
 	}
 
+	logrus.Infof("Path: %s", path)
 	r, err := t.ipfsClient.Cat(path)
 	if err != nil {
 		return nil, err
@@ -87,7 +98,15 @@ func (t Transformer) Status() []transformers.Status {
 }
 
 func (t Transformer) Params() map[string]interface{} {
+	return t.params
+}
+
+func (t Transformer) Result() interface{} {
 	return nil
+}
+
+func (t Transformer) CreditsConsumed() int {
+	return 1
 }
 
 func (s Transformer) Copy(spec SpecSchema) error {
@@ -96,9 +115,13 @@ func (s Transformer) Copy(spec SpecSchema) error {
 }
 
 type SpecSchema struct {
-	Url string `json:"url"`
+	Url string `json:"url" template:""`
 }
 
 func getCID(url string) string {
 	return strings.Split(strings.TrimPrefix(url, "ipfs://"), "/")[0]
+}
+
+func (t Transformer) Deadline() time.Duration {
+	return deadline
 }
