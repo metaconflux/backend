@@ -6,16 +6,30 @@ require (
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/ipfs/go-ipfs-api v0.3.0
 	github.com/labstack/echo/v4 v4.10.0
+	github.com/manifoldco/promptui v0.9.0
 	github.com/sirupsen/logrus v1.9.0
+	github.com/spf13/cobra v1.6.1
 	github.com/spruceid/siwe-go v0.2.0
 )
 
 require (
+	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/chromedp/cdproto v0.0.0-20230109101555-6b041c6303cc // indirect
+	github.com/chromedp/chromedp v0.8.7 // indirect
+	github.com/chromedp/sysutil v1.0.0 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gobwas/ws v1.1.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-sqlite3 v1.14.15 // indirect
 	github.com/relvacode/iso8601 v1.1.0 // indirect
+	github.com/tebeka/selenium v0.9.9 // indirect
 	github.com/vpavlin/mustache v0.0.0-20230202154505-c4fc84267129 // indirect
 )
 

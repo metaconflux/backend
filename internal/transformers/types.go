@@ -2,8 +2,10 @@ package transformers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/metaconflux/backend/internal/gvk"
@@ -12,12 +14,14 @@ import (
 var DEFAULT_DEADLINE = 5 * time.Second
 
 var ErrTransformerTimeout = fmt.Errorf("Transformer exceeded deadline")
+var ErrTransformerUnknown = fmt.Errorf("Transformer unknown")
 
 type ITransformer interface {
 	//Prepare() error
 	//Transform(base interface{}) error
 	WithSpec(spec interface{}, params map[string]interface{}) (ITransformer, error)
 	Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error)
+	Validate() error
 	Result() interface{}
 	Status() []Status
 	Params() map[string]interface{}
@@ -26,11 +30,13 @@ type ITransformer interface {
 }
 
 type NewTransformerFunc = func(spec interface{}, params map[string]interface{}) (ITransformer, error)
+type NewSpecFromPrompt = func() (BaseTransformer, error)
 
 type TransformerInfo struct {
 	New      NewTransformerFunc
 	Credits  int
 	Deadline time.Duration
+	Prompt   NewSpecFromPrompt
 }
 
 type Status struct {
@@ -48,7 +54,7 @@ type ManifestInfo struct {
 type BaseTransformer struct {
 	gvk.GroupVersionKind
 	Spec   interface{} `json:"spec"`
-	Status []Status    `json:"status"`
+	Status []Status    `json:"status,omitempty"`
 }
 
 type Transformers struct {
@@ -61,7 +67,7 @@ func NewTransformerManager() (*Transformers, error) {
 	}, nil
 }
 
-func (t Transformers) Register(gvk gvk.GroupVersionKind, transformer NewTransformerFunc) error {
+func (t Transformers) Register(gvk gvk.GroupVersionKind, transformer NewTransformerFunc, prompt NewSpecFromPrompt) error {
 	if _, ok := t.transformers[gvk]; ok {
 		return fmt.Errorf("Transformer %s already exists", gvk)
 	}
@@ -75,6 +81,7 @@ func (t Transformers) Register(gvk gvk.GroupVersionKind, transformer NewTransfor
 		New:      transformer,
 		Credits:  nt.CreditsConsumed(),
 		Deadline: nt.Deadline(),
+		Prompt:   prompt,
 	}
 
 	return nil
@@ -83,10 +90,19 @@ func (t Transformers) Register(gvk gvk.GroupVersionKind, transformer NewTransfor
 func (t Transformers) Get(gvk gvk.GroupVersionKind) (TransformerInfo, error) {
 	transformer, ok := t.transformers[gvk]
 	if !ok {
-		return TransformerInfo{}, fmt.Errorf("Transformer %s unknown", gvk)
+		return TransformerInfo{}, ErrTransformerUnknown
 	}
 
 	return transformer, nil
+}
+
+func (t Transformers) GetRegistered() []gvk.GroupVersionKind {
+	keys := make([]gvk.GroupVersionKind, 0, len(t.transformers))
+	for key := range t.transformers {
+		keys = append(keys, key)
+	}
+
+	return keys
 }
 
 func (t Transformers) UpdateParams(params *map[string]interface{}, toUpdate map[string]interface{}) error {
@@ -195,12 +211,54 @@ func (t Transformers) Execute(transformers []BaseTransformer, params map[string]
 		return
 	}
 
+	manifestCID := ""
+	if _, ok := params["manifestCID"]; ok {
+		manifestCID = params["manifestCID"].(string)
+	}
+
 	result["manifestInfo"] = ManifestInfo{
 		GeneratedAt:      time.Now(),
 		TransformerCount: len(transformers),
 		Runtime:          end.Sub(start).Milliseconds(),
-		ManifestCID:      params["manifestCID"].(string),
+		ManifestCID:      manifestCID,
 	}
 
 	return
+}
+
+func (t Transformers) Validate(transformers []BaseTransformer) error {
+	var failedTransformers []string
+	var failedValidations []string
+	for _, ts := range transformers {
+		tf, err := t.Get(ts.GroupVersionKind)
+		if errors.Is(err, ErrTransformerUnknown) {
+			failedTransformers = append(failedTransformers, ts.GroupVersionKind.String())
+			continue
+		}
+
+		transformer, err := tf.New(ts.Spec, map[string]interface{}{})
+		if err != nil {
+			failedValidations = append(failedValidations, fmt.Sprintf("Failed to instantiate %s: %s", ts.GroupVersionKind.String(), err))
+		}
+
+		err = transformer.Validate()
+		if err != nil {
+			failedValidations = append(failedValidations, fmt.Sprintf("Failed to validate %s: %s", ts.GroupVersionKind.String(), err))
+		}
+	}
+
+	var result string
+	if len(failedTransformers) > 0 {
+		result += fmt.Sprintf("Transformers %s not registered\n", strings.Join(failedTransformers, ", "))
+	}
+
+	if len(failedValidations) > 0 {
+		result += fmt.Sprintf("Validation failed: %s", strings.Join(failedValidations, ", "))
+	}
+
+	if len(result) > 0 {
+		return fmt.Errorf(result)
+	}
+
+	return nil
 }

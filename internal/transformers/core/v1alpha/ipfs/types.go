@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/metaconflux/backend/internal/gvk"
 	"github.com/metaconflux/backend/internal/template"
@@ -27,10 +29,11 @@ var deadline = 3 * time.Second
 var _ transformers.ITransformer = (*Transformer)(nil)
 
 type Transformer struct {
-	spec       SpecSchema
-	params     map[string]interface{}
-	data       map[string]interface{}
-	ipfsClient *shell.Shell
+	spec        SpecSchema
+	params      map[string]interface{}
+	data        map[string]interface{}
+	initialized bool
+	ipfsClient  *shell.Shell
 }
 
 func NewTransformer(shell *shell.Shell) *Transformer {
@@ -47,8 +50,9 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 	}
 
 	transformer := Transformer{
-		params:     params,
-		ipfsClient: t.ipfsClient,
+		params:      params,
+		ipfsClient:  t.ipfsClient,
+		initialized: true,
 	}
 
 	err = template.Template(&spec, &transformer.spec, params)
@@ -60,16 +64,13 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 }
 
 func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error) {
-	split := strings.Split(t.spec.Url, ":")
+	split := strings.TrimPrefix(t.spec.Url, "ipfs://")
 
-	logrus.Infof("Split: %s", split)
-
-	path, err := utils.Template(split[1][2:], t.params)
+	path, err := utils.Template(split, t.params)
 	if err != nil {
 		return nil, err
 	}
 
-	logrus.Infof("Path: %s", path)
 	r, err := t.ipfsClient.Cat(path)
 	if err != nil {
 		return nil, err
@@ -110,7 +111,10 @@ func (t Transformer) CreditsConsumed() int {
 }
 
 func (s Transformer) Copy(spec SpecSchema) error {
-	cid := getCID(spec.Url)
+	cid, err := getCID(spec.Url)
+	if err != nil {
+		return err
+	}
 	return s.ipfsClient.FilesCp(context.Background(), fmt.Sprintf("/ipfs/%s", cid), fmt.Sprintf("/%s", cid))
 }
 
@@ -118,10 +122,38 @@ type SpecSchema struct {
 	Url string `json:"url" template:""`
 }
 
-func getCID(url string) string {
-	return strings.Split(strings.TrimPrefix(url, "ipfs://"), "/")[0]
+func getCID(url string) (string, error) {
+	re := regexp.MustCompile("ipfs://([^/]+)/?(.*)")
+	match := re.FindAllStringSubmatch(url, -1)
+	logrus.Infoln(match)
+	if len(match) == 0 {
+		return "", fmt.Errorf("Failed to parse IPFS URL")
+	}
+
+	if len(match[0]) < 2 {
+		return "", fmt.Errorf("Failed to parse IPFS URL")
+	}
+	return match[0][1], nil
 }
 
 func (t Transformer) Deadline() time.Duration {
 	return deadline
+}
+
+func (t Transformer) Validate() error {
+	if !t.initialized {
+		return fmt.Errorf("Not initialized")
+	}
+
+	c, err := getCID(t.spec.Url)
+	if err != nil {
+		return err
+	}
+
+	_, err = cid.Decode(c)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

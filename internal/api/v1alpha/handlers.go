@@ -62,10 +62,13 @@ func (a API) Register(g *echo.Group) {
 func (a API) Create(c echo.Context) error {
 	var data Manifest
 	err := c.Bind(&data)
+	if err != nil {
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
+	}
 	normalizedContract := strings.ToLower(data.Contract)
 
 	if !data.ValidVersion(VERSION) {
-		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Invalid Resource Version")))
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Invalid Resource Version: %s", data.Version)))
 	}
 
 	chainId := fmt.Sprintf("%d", data.ChainID)
@@ -82,6 +85,10 @@ func (a API) Create(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusBadRequest, fmt.Errorf("Resource Already Exists")))
 	}
 
+	err = a.transformers.Validate(data.Transformers)
+	if err != nil {
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
+	}
 	user, err := a.getUser(c)
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
@@ -127,7 +134,7 @@ func (a API) Create(c echo.Context) error {
 		return c.JSON(utils.NewApiError(http.StatusInternalServerError, err))
 	}
 
-	return c.JSON(http.StatusCreated, MetadataResult{Url: fmt.Sprintf("/api/v1alpha/metadata/%s/", normalizedContract)})
+	return c.JSON(http.StatusCreated, MetadataResult{Url: fmt.Sprintf("/api/v1alpha/manifest/%s/%s/", chainId, normalizedContract)})
 }
 
 func (a API) Update(c echo.Context) error {
@@ -160,6 +167,11 @@ func (a API) Update(c echo.Context) error {
 	user, err := a.ensureOwner(c, manifest)
 	if err != nil {
 		return c.JSON(utils.NewApiError(http.StatusUnauthorized, err))
+	}
+
+	err = a.transformers.Validate(data.Transformers)
+	if err != nil {
+		return c.JSON(utils.NewApiError(http.StatusBadRequest, err))
 	}
 
 	um, err := a.repository.GetByAddress(c.Request().Context(), user.Subject)
@@ -422,6 +434,7 @@ func (a API) generate(tokenId string, chainId string, contract string) (map[stri
 	}
 
 	params := make(map[string]interface{})
+	params["chainId"] = chainId
 	params["id"] = tokenId
 	params["contract"] = contract
 	params["manifestCID"] = manifestCID

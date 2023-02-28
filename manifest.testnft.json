@@ -1,4 +1,6 @@
 {
+  "version": "v1alpha",
+  "chainId": 80001,
   "contract": "0xeC169CA9A538210ed41Ae9dA4F53C0F7ea16bCb0",
   "transformers": [
     {
@@ -38,6 +40,19 @@
           }
         ]
       }
+    },
+    {
+      kind: API
+      spec:
+        url: mojeapi.cz/api/{{id}}
+    },
+    {
+      kind: SynthDB
+      spec:
+        object: UUID
+        mapping:
+        - path: ...
+          target: attributes.30.value
     }
   ]
 }
