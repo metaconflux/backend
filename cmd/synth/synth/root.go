@@ -5,6 +5,7 @@ import (
 
 	"github.com/metaconflux/backend/internal/chains"
 	"github.com/metaconflux/backend/internal/transformers"
+	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/container"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/contract"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/local"
 	"github.com/metaconflux/backend/internal/transformers/core/v1alpha/print"
@@ -59,6 +60,11 @@ func PrepTransformers() (*transformers.Transformers, error) {
 
 	localT := local.NewTransformer()
 
+	containerT, err := container.NewTransformer()
+	if err != nil {
+		return nil, err
+	}
+
 	tm, err := transformers.NewTransformerManager()
 	if err != nil {
 		return nil, err
@@ -75,6 +81,11 @@ func PrepTransformers() (*transformers.Transformers, error) {
 	}
 
 	err = tm.Register(local.GVK, localT.WithSpec, local.NewSpecFromPrompt)
+	if err != nil {
+		return nil, err
+	}
+
+	err = tm.Register(container.GVK, containerT.WithSpec, nil)
 	if err != nil {
 		return nil, err
 	}

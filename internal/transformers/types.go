@@ -17,7 +17,7 @@ var ErrTransformerTimeout = fmt.Errorf("Transformer exceeded deadline")
 var ErrTransformerUnknown = fmt.Errorf("Transformer unknown")
 
 type ITransformer interface {
-	//Prepare() error
+	Prepare() error
 	//Transform(base interface{}) error
 	WithSpec(spec interface{}, params map[string]interface{}) (ITransformer, error)
 	Execute(ctx context.Context, base map[string]interface{}) (map[string]interface{}, error)
@@ -145,7 +145,31 @@ func (t Transformers) CalculateCredits(transformers []BaseTransformer) int {
 	return result
 }
 
+func (t Transformers) Prepare(transformers []BaseTransformer) error {
+	for _, tSpec := range transformers {
+		var ti TransformerInfo
+		ti, err := t.Get(tSpec.GroupVersionKind)
+		if err != nil {
+			return err
+		}
+
+		var transformer ITransformer
+		transformer, err = ti.New(tSpec.Spec, nil)
+		if err != nil {
+			return err
+		}
+
+		err = transformer.Prepare()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (t Transformers) Execute(transformers []BaseTransformer, params map[string]interface{}) (result map[string]interface{}, err error) {
+	result = map[string]interface{}{}
 	//results := make([]interface{}, len(transformers))
 	start := time.Now()
 	for _, tSpec := range transformers {
@@ -164,6 +188,11 @@ func (t Transformers) Execute(transformers []BaseTransformer, params map[string]
 			defer func() {
 				tSpec.Status = transformer.Status()
 			}()
+
+			err = transformer.Prepare()
+			if err != nil {
+				return
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), ti.Deadline)
 			defer cancel()

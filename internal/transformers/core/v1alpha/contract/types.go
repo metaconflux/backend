@@ -226,6 +226,10 @@ func (t Transformer) Deadline() time.Duration {
 	return deadline
 }
 
+func (t Transformer) Prepare() error {
+	return nil
+}
+
 func (t Transformer) Validate() error {
 	return nil
 }
