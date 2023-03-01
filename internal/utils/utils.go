@@ -2,11 +2,13 @@ package utils
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"math/rand"
 
 	"github.com/vpavlin/mustache"
 )
+
+const ZERO_ADDR = "0x0000000000000000000000000000000000000000"
 
 func Remarshal(in interface{}, out interface{}) error {
 	b, err := json.Marshal(in)
@@ -45,7 +47,7 @@ func JsonPretty(in interface{}) error {
 		return err
 	}
 
-	log.Println(string(data))
+	fmt.Println(string(data))
 	return nil
 }
 

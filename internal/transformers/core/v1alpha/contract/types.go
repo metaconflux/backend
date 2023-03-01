@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -67,20 +65,32 @@ func (s SpecSchema) funcDef() string {
 	return function
 }
 
-func (s SpecSchema) argValues() []any {
+func (s SpecSchema) argValues() ([]any, error) {
 	result := make([]any, len(s.Args))
 
 	for i, arg := range s.Args {
 		switch arg.Type {
-		case "uint256":
+		case "uint256", "int256", "uint", "int":
 			val, err := strconv.Atoi(arg.Value)
 			if err != nil {
-				return nil
+				return nil, err
 			}
 			result[i] = big.NewInt(int64(val))
+		case "address":
+			val := common.HexToAddress(arg.Value)
+			result[i] = val
+		case "string":
+			result[i] = arg.Value
+		case "bool":
+			val, err := strconv.ParseBool(arg.Value)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = val
 		}
+
 	}
-	return result
+	return result, nil
 }
 
 func (s SpecSchema) retTypes() string {
@@ -98,13 +108,20 @@ func (s SpecSchema) retTargets() []any {
 
 	for i, ret := range s.Returns {
 		switch ret.Type {
-		case "uint256":
+		case "uint256", "int256", "uint", "int":
 			typ := big.NewInt(-1)
 			types[i] = typ
 		case "address":
 			typ := common.Address{}
 			types[i] = &typ
+		case "string":
+			typ := ""
+			types[i] = &typ
+		case "bool":
+			typ := false
+			types[i] = &typ
 		}
+
 		//TODO: Add remaining types
 	}
 
@@ -124,13 +141,6 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 		return nil, err
 	}
 
-	/*for i, arg := range spec.Args {
-		spec.Args[i].Value, err = utils.Template(arg.Value.(string), params)
-		if err != nil {
-			return nil, err
-		}
-	}*/
-
 	transformer := Transformer{
 		params:  params,
 		clients: t.clients,
@@ -140,7 +150,7 @@ func (t Transformer) WithSpec(ispec interface{}, params map[string]interface{}) 
 	if err != nil {
 		return nil, err
 	}
-	log.Println(transformer.spec)
+	//log.Println(transformer.spec)
 
 	return transformer, nil
 }
@@ -152,11 +162,16 @@ func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (
 	}
 
 	data := t.spec.retTargets()
-	log.Println(reflect.TypeOf(data[0]))
+	//log.Println(reflect.TypeOf(data[0]))
+
+	args, err := t.spec.argValues()
+	if err != nil {
+		return nil, err
+	}
 
 	err = t.clients[t.spec.ChainID].CallCtx(
 		ctx,
-		eth.CallFunc(w3func, t.spec.Address, t.spec.argValues()...).Returns(data...),
+		eth.CallFunc(w3func, t.spec.Address, args...).Returns(data...),
 	)
 	if err != nil {
 		return nil, err
@@ -186,7 +201,7 @@ func (t Transformer) Execute(ctx context.Context, base map[string]interface{}) (
 		return nil, err
 	}
 
-	log.Println(resultMap)
+	//log.Println(resultMap)
 
 	return resultMap, nil
 }
@@ -209,4 +224,8 @@ func (t Transformer) CreditsConsumed() int {
 
 func (t Transformer) Deadline() time.Duration {
 	return deadline
+}
+
+func (t Transformer) Validate() error {
+	return nil
 }

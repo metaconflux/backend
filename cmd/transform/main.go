@@ -38,12 +38,12 @@ func main() {
 
 	constractT := contract.NewTransformer(clients)
 
-	err = tm.Register(ipfs.GVK, ipfsT.WithSpec)
+	err = tm.Register(ipfs.GVK, ipfsT.WithSpec, ipfs.NewSpecFromPrompt)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = tm.Register(contract.GVK, constractT.WithSpec)
+	err = tm.Register(contract.GVK, constractT.WithSpec, contract.NewSpecFromPrompt)
 	if err != nil {
 		log.Fatal(err)
 	}

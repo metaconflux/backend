@@ -12,6 +12,7 @@ server:
 
 build:
 	go build -o _build/server cmd/server/main.go
+	go build -o _build/synth cmd/synth/main.go
 
 build-container:
 	podman build -t $(TAG) .
