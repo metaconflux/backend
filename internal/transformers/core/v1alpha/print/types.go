@@ -85,3 +85,7 @@ func (t Transformer) Deadline() time.Duration {
 func (t Transformer) Validate() error {
 	return nil
 }
+
+func (t Transformer) Prepare() error {
+	return nil
+}
